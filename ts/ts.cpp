@@ -80,7 +80,7 @@ void recvThread(int sd) {
 		}
 		buf[res] = '\0';
 		printf("%s", buf);
-		fflush(stdout);
+		//fflush(stdout);
 		if (param.echo) {
 			res = ::send(sd, buf, res, 0);
 			if (res == 0 || res == -1) {
@@ -105,6 +105,26 @@ void recvThread(int sd) {
 	printf("disconnected\n");
 	clients.erase(sd);
 	::close(sd);
+}
+
+void sendThread(int sd){
+	while (true) {
+		static const int BUFSIZE = 65536;
+		char buf[BUFSIZE];
+		ssize_t res;
+		scanf("%s", buf);
+		strcat(buf, "\r\n");
+		for (int client_sd : clients.cli){
+			if (sd == client_sd)
+				continue;
+			res = ::send(client_sd, buf, strlen(buf), 0);
+			if (res == 0 || res == -1) {
+				fprintf(stderr, "send return %ld", res);
+				perror(" ");
+				break;
+			}
+		}	
+	}
 }
 
 int main(int argc, char* argv[]) {
@@ -150,6 +170,9 @@ int main(int argc, char* argv[]) {
 		perror("listen");
 		return -1;
 	}
+
+	std::thread t(sendThread, sd);
+	t.detach();
 
 	while (true) {
 		struct sockaddr_in cli_addr;
