@@ -12,10 +12,13 @@
 #include "../mingw_net.h"
 #endif // WIN32
 #include <thread>
+#include <mutex>
 
 #ifdef WIN32
 void perror(const char* msg) { fprintf(stderr, "%s %ld\n", msg, GetLastError()); }
 #endif // WIN32
+
+std::mutex m;
 
 void usage() {
 	printf("syntax: ts [-e] <port>\n");
@@ -68,7 +71,9 @@ struct Cli {
 
 void recvThread(int sd) {
 	printf("connected\n");
+	m.lock();
 	clients.append(sd);
+	m.unlock();
 	static const int BUFSIZE = 65536;
 	char buf[BUFSIZE];
 	while (true) {
@@ -79,8 +84,8 @@ void recvThread(int sd) {
 			break;
 		}
 		buf[res] = '\0';
-		printf("%s", buf);
-		//fflush(stdout);
+		printf("[*]%s", buf);
+		fflush(stdout);
 		if (param.echo) {
 			res = ::send(sd, buf, res, 0);
 			if (res == 0 || res == -1) {
@@ -90,6 +95,7 @@ void recvThread(int sd) {
 			}
 		}
 		if(param.broadcast) {
+			m.lock();
 			for (int client_sd : clients.cli){
 				if (sd == client_sd)
 					continue;
@@ -99,11 +105,14 @@ void recvThread(int sd) {
 					perror(" ");
 					break;
 				}
-			}	
+			}
+			m.unlock();	
 		}
 	}
 	printf("disconnected\n");
+	m.lock();
 	clients.erase(sd);
+	m.unlock();
 	::close(sd);
 }
 
@@ -114,6 +123,7 @@ void sendThread(int sd){
 		ssize_t res;
 		scanf("%s", buf);
 		strcat(buf, "\r\n");
+		m.lock();
 		for (int client_sd : clients.cli){
 			if (sd == client_sd)
 				continue;
@@ -123,7 +133,8 @@ void sendThread(int sd){
 				perror(" ");
 				break;
 			}
-		}	
+		}
+		m.unlock();	
 	}
 }
 
